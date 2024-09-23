@@ -10,6 +10,8 @@ const upload = multer({ storage: multer.memoryStorage() });
 const authMiddleware = require('../middlewares/AuthMiddleware')
 const User = require('../models/User')
 
+module.exports = (io)=>{
+
 router.post('/upload', upload.single('file'), async (req, res) => {
   console.log('i came here...');
   if (!req.file) {
@@ -35,6 +37,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
       try {
         console.log(results, 'service layer');
         await Contact.insertMany(results);
+        io.emit('contacts-updated');
         res.status(200).send('Contacts saved successfully!');
       } catch (error) {
         res.status(500).send('Error saving contacts: ' + error.message);
@@ -71,20 +74,20 @@ router.get('/contacts/:batchId', async (req, res) => {
   }
 });
 
-router.put('/contacts/:id', async (req, res) => {
-  const { id } = req.params;
-  const { status } = req.body;
+// router.put('/contacts/:id', async (req, res) => {
+//   const { id } = req.params;
+//   const { status } = req.body;
 
-  try {
-      const updatedContact = await Contact.findByIdAndUpdate(id, { status }, { new: true });
-      if (!updatedContact) {
-          return res.status(404).json({ error: 'Contact not found' });
-      }
-      res.json(updatedContact);
-  } catch (error) {
-      res.status(500).json({ error: 'Error updating contact' });
-  }
-});
+//   try {
+//       const updatedContact = await Contact.findByIdAndUpdate(id, { status }, { new: true });
+//       if (!updatedContact) {
+//           return res.status(404).json({ error: 'Contact not found' });
+//       }
+//       res.json(updatedContact);
+//   } catch (error) {
+//       res.status(500).json({ error: 'Error updating contact' });
+//   }
+// });
 
 router.put('/contacts/:id', async (req, res) => {
   try {
@@ -97,6 +100,7 @@ router.put('/contacts/:id', async (req, res) => {
       if (!contact) {
           return res.status(404).json({ message: 'Contact not found' });
       }
+      io.emit('contacts-updated');
 
       res.status(200).json({ message: 'Contact status updated', contact });
   } catch (error) {
@@ -114,7 +118,7 @@ router.put('/user/assign', authMiddleware, async (req, res) => {
       if (!user) {
           return res.status(404).json({ message: 'User not found' });
       }
-
+      io.emit('contacts-updated');
       res.status(200).json({ message: 'User assignment updated', user });
   } catch (error) {
       res.status(500).json({ message: 'Error unassigning user', error });
@@ -166,14 +170,14 @@ router.get('/check-assigned/:batchId', authMiddleware, async (req, res) => {
 
 router.get('/isAssigned', authMiddleware, async(req, res)=>{
   try {
-    console.log('heyy');
+    // console.log('heyy');
     const userId = req.user._id
     const user = await User.findById(userId)
     if (user.assigned){
       console.log('user assigned');
       const contact = await Contact.findOne({ _id:user.assigned})
-      console.log(contact, 'checking herre..');
-
+      // console.log(contact, 'checking herre..');
+      io.emit('contacts-updated');
       return res.status(200).json({data:contact.batchId})
     }else{
       return res.status(200).json({data:null})
@@ -195,6 +199,7 @@ router.post('/leave-process', authMiddleware, async(req, res)=>{
     const updateContactResponse = await Contact.findByIdAndUpdate(contactId, {status:'unassigned'})
     const updateUserResponse = await User.findByIdAndUpdate(userId, {assigned:null})
     console.log(updateContactResponse, updateUserResponse,  'update response has fetched..');
+    io.emit('contacts-updated');
     return res.status(200).json({message:'User has left the batch'})
     } catch (error) {
       res.status(500).json({ message: 'Error leaving batch', error });
@@ -206,4 +211,5 @@ router.post('/leave-process', authMiddleware, async(req, res)=>{
 
 
 
-module.exports = router;
+return router
+}
